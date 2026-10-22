@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Square Sight</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Square Sight">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#eef1f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#11161c" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-180.png">
+<style>
+html{color-scheme:light dark}
+:root{padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Martian+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one-column phone trainer — controls on top, the board is the hero, a weak-spot heat map below */
+:root{
+  --bg:#eef1f4; --surface:#ffffff; --ink:#18212b; --muted:#5d6a77; --line:#d4dbe2;
+  --accent:#24364b; --accent-ink:#ffffff;
+  --sq-light:#dfe5ec; --sq-dark:#7f93a8; --lab-on-light:#5a6d82; --lab-on-dark:#eef2f6;
+  --target:#efa72a; --good:#1e9e68; --bad:#d8473d; --scrim:rgba(238,241,244,.86);
+  --f-ui:"Familjen Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-coord:"Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161c; --surface:#1a2129; --ink:#e6ebf0; --muted:#95a2af; --line:#2c3641;
+    --accent:#a9c6e6; --accent-ink:#0f1720;
+    --sq-light:#c4cdd7; --sq-dark:#5b6e83; --lab-on-light:#4c6076; --lab-on-dark:#e3eaf0;
+    --target:#f3b545; --good:#2fbf83; --bad:#f0645a; --scrim:rgba(17,22,28,.86);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161c; --surface:#1a2129; --ink:#e6ebf0; --muted:#95a2af; --line:#2c3641;
+  --accent:#a9c6e6; --accent-ink:#0f1720;
+  --sq-light:#c4cdd7; --sq-dark:#5b6e83; --lab-on-light:#4c6076; --lab-on-dark:#e3eaf0;
+  --target:#f3b545; --good:#2fbf83; --bad:#f0645a; --scrim:rgba(17,22,28,.86);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui); font-size:16px; line-height:1.4;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:12px 40px;
+  -webkit-tap-highlight-color:transparent;
+}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
+button:focus-visible{outline:3px solid var(--target); outline-offset:2px}
+.app{max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:12px}
+
+/* header */
+.top{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+h1{margin:0; font-size:22px; font-weight:700; letter-spacing:-.01em}
+h1 span{font-family:var(--f-coord); font-weight:500; font-size:13px; color:var(--muted); margin-left:6px; letter-spacing:.02em}
+
+/* segmented controls */
+.seg{display:flex; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:3px; gap:2px}
+.seg button{flex:1; border:0; background:transparent; color:var(--muted); font-weight:600; font-size:15px; padding:7px 12px; border-radius:999px; min-height:38px; white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink)}
+.seg.small button{font-size:14px; padding:6px 10px; min-height:34px}
+.side-dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:-1px; border:1.5px solid currentColor}
+.side-dot.w{background:#f6f7f9} .side-dot.b{background:#1b2027}
+
+.bar{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.stats{display:flex; gap:12px}
+.stat.total b{color:var(--good)}
+.alltime{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding:12px 14px; border-radius:12px; background:color-mix(in srgb, var(--good) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--good) 30%, var(--line))}
+.alltime b{font-family:var(--f-coord); font-size:28px; font-weight:700; line-height:1; color:var(--good); font-variant-numeric:tabular-nums}
+.alltime span{font-size:14px; color:var(--muted)}
+.stat{display:flex; flex-direction:column; align-items:center; min-width:42px}
+.stat b{font-family:var(--f-coord); font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1}
+.stat span{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted)}
+
+/* prompt */
+.prompt{display:flex; align-items:center; gap:14px; min-height:74px}
+.prompt .left{display:flex; flex-direction:column; min-width:0}
+.ask{font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:600}
+.target{font-family:var(--f-coord); font-size:46px; font-weight:700; line-height:1; letter-spacing:-.02em}
+.fb{flex:1; min-width:0; font-size:15px; color:var(--muted); text-align:right}
+.fb.ok{color:var(--good); font-weight:600}
+.fb.no{color:var(--bad); font-weight:600}
+.fb small{display:block; font-weight:400; color:var(--muted); font-size:13px}
+
+/* timer */
+.timebar{position:relative; height:22px; border-radius:999px; background:var(--surface); border:1px solid var(--line); overflow:hidden}
+.timebar i{position:absolute; inset:0 auto 0 0; width:100%; background:var(--accent); opacity:.18}
+.timebar span{position:relative; display:block; text-align:center; font-family:var(--f-coord); font-size:12px; line-height:20px; font-variant-numeric:tabular-nums}
+
+/* stage + board */
+.stage{position:relative; width:min(100%, 480px); width:min(100%, 58vh, 480px); width:min(100%, 58dvh, 480px); margin-inline:auto; max-width:100%}
+.board{display:grid; grid-template-columns:repeat(8,1fr); border-radius:6px; overflow:hidden; box-shadow:0 0 0 1px var(--line), 0 6px 20px rgba(20,30,45,.12); aspect-ratio:1; max-width:100%}
+.sq{position:relative; border:0; padding:0; margin:0; aspect-ratio:1; background:var(--sq-light); display:grid; place-items:center}
+.sq.d{background:var(--sq-dark)}
+.sq:active{filter:brightness(.9)}
+.rk,.fl{position:absolute; font-family:var(--f-coord); font-size:clamp(8px, 2.3vw, 11px); font-weight:700; pointer-events:none; line-height:1}
+.rk{top:3px; left:3px} .fl{bottom:3px; right:3px}
+.sq.l .rk,.sq.l .fl{color:var(--lab-on-light)}
+.sq.d .rk,.sq.d .fl{color:var(--lab-on-dark)}
+.board.nolabels .rk,.board.nolabels .fl{display:none}
+.tag{display:none; font-family:var(--f-coord); font-weight:700; font-size:clamp(11px, 3.4vw, 15px); background:var(--ink); color:var(--surface); padding:2px 5px; border-radius:4px; pointer-events:none; position:relative; z-index:1}
+.sq.tagged .tag{display:block}
+.sq.target{background:var(--target)}
+.sq.target::after{content:""; position:absolute; inset:18%; border-radius:50%; border:3px solid var(--ink); opacity:.55}
+.sq.good{background:var(--good); animation:pop .28s ease-out}
+.sq.bad{background:var(--bad); animation:shake .3s ease-out}
+.sq.good .rk,.sq.good .fl,.sq.bad .rk,.sq.bad .fl,.sq.target .rk,.sq.target .fl{color:#fff}
+@keyframes pop{0%{transform:scale(.86)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}30%{transform:translateX(-3px)}60%{transform:translateX(3px)}}
+
+/* colour mode */
+.cpanel{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.cbtn{border:2px solid var(--line); background:var(--surface); border-radius:14px; padding:14px; display:flex; flex-direction:column; align-items:center; gap:10px; font-weight:700; font-size:18px; min-height:170px; justify-content:center}
+.sw{width:76px; height:76px; border-radius:8px; box-shadow:0 0 0 1px var(--line)}
+.sw.l{background:var(--sq-light)} .sw.d{background:var(--sq-dark)}
+.cbtn.good{border-color:var(--good); box-shadow:0 0 0 3px var(--good)}
+.cbtn.bad{border-color:var(--bad); box-shadow:0 0 0 3px var(--bad)}
+
+/* name-mode options */
+.options{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.opt{border:1px solid var(--line); background:var(--surface); border-radius:12px; min-height:54px; font-family:var(--f-coord); font-weight:700; font-size:20px}
+.opt.good{background:var(--good); border-color:var(--good); color:#fff}
+.opt.bad{background:var(--bad); border-color:var(--bad); color:#fff}
+
+/* overlay for timed runs */
+.overlay{position:absolute; inset:0; display:grid; place-items:center; background:var(--scrim); border-radius:8px; z-index:5; padding:16px; min-height:170px}
+.ocard{text-align:center; display:flex; flex-direction:column; gap:8px; align-items:center}
+.ocard .big{font-family:var(--f-coord); font-size:44px; font-weight:700; line-height:1}
+.ocard p{margin:0; color:var(--muted)}
+.ocard .new{color:var(--good); font-weight:700}
+.primary{border:0; background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:17px; padding:12px 26px; border-radius:999px; margin-top:6px}
+
+/* toggles */
+.tools{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
+.chipbtn{border:1px solid var(--line); background:var(--surface); color:var(--muted); border-radius:999px; padding:7px 14px; font-size:14px; font-weight:600}
+.chipbtn[aria-pressed="true"]{border-color:var(--accent); color:var(--ink); box-shadow:inset 0 0 0 1px var(--accent)}
+.chipbtn[aria-pressed="true"]::before{content:"✓ "}
+
+/* weak spots */
+.weak{margin-top:10px; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.weak-head{display:flex; justify-content:space-between; align-items:center; gap:8px}
+h2{margin:0; font-size:18px}
+.linkbtn{border:0; background:none; color:var(--muted); font-size:14px; text-decoration:underline; padding:6px 2px}
+.linkbtn.armed{color:var(--bad); font-weight:700}
+.weak-body{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start}
+.heat{display:grid; grid-template-columns:repeat(8,1fr); width:168px; max-width:100%; aspect-ratio:1; border-radius:4px; overflow:hidden; box-shadow:0 0 0 1px var(--line); flex:none}
+.hc{position:relative; background:color-mix(in srgb, var(--bad) var(--p,0%), var(--sq-light))}
+.hc.d{background:color-mix(in srgb, var(--bad) var(--p,0%), var(--sq-dark))}
+.weak-side{flex:1; min-width:160px; display:flex; flex-direction:column; gap:10px}
+.weak-side p{margin:0; font-size:14px; color:var(--muted)}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{font-family:var(--f-coord); font-weight:700; font-size:14px; padding:4px 8px; border-radius:6px; background:color-mix(in srgb, var(--bad) 16%, var(--surface)); border:1px solid color-mix(in srgb, var(--bad) 40%, var(--line))}
+.chip small{font-weight:500; color:var(--muted); font-size:11px; margin-left:4px}
+.rule{margin:0; font-size:14px; color:var(--muted); border-top:1px solid var(--line); padding-top:12px}
+.rule b{color:var(--ink)}
+.note{font-size:13px; color:var(--muted); text-align:center; margin:0; text-wrap:balance}
+.note::before{content:""; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:1px; background:var(--muted)}
+.note[data-state="saved"]::before{background:var(--good)}
+.note[data-state="saving"]::before,.note[data-state="connecting"]::before{background:var(--target)}
+.note[data-state="retry"]::before{background:var(--bad)}
+
+@media (prefers-reduced-motion: reduce){ .sq.good,.sq.bad{animation:none} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Square Sight<span>a1–h8</span></h1>
+    <div class="seg small" id="sideSeg" role="group" aria-label="Board seen from">
+      <button type="button" data-side="white" id="sideWhite"><i class="side-dot w"></i>White</button>
+      <button type="button" data-side="black" id="sideBlack"><i class="side-dot b"></i>Black</button>
+    </div>
+  </header>
+
+  <div class="seg" id="modeSeg" role="group" aria-label="Practice mode">
+    <button type="button" data-mode="find" id="modeFind">Find</button>
+    <button type="button" data-mode="name" id="modeName">Name</button>
+    <button type="button" data-mode="colour" id="modeColour">Light or dark</button>
+  </div>
+
+  <div class="bar">
+    <div class="seg small" id="durSeg" role="group" aria-label="Timer">
+      <button type="button" data-dur="0" id="dur0">Practice</button>
+      <button type="button" data-dur="30" id="dur30">30 s</button>
+      <button type="button" data-dur="60" id="dur60">60 s</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="score">0</b><span>Score</span></div>
+      <div class="stat"><b id="streak">0</b><span>Streak</span></div>
+      <div class="stat"><b id="bestStreak">0</b><span>Best</span></div>
+      <div class="stat total"><b id="total">0</b><span>All time</span></div>
+    </div>
+  </div>
+
+  <div class="timebar" id="timebar" hidden><i id="timefill"></i><span id="timeleft">30 s left</span></div>
+
+  <section class="prompt" aria-live="polite">
+    <div class="left">
+      <div class="ask" id="ask">Tap the square</div>
+      <div class="target" id="target">e4</div>
+    </div>
+    <div class="fb" id="fb"></div>
+  </section>
+
+  <div class="stage" id="stage">
+    <div class="board" id="board" role="grid" aria-label="Chess board"></div>
+    <div class="cpanel" id="cpanel" hidden>
+      <button type="button" class="cbtn" data-c="light" id="cLight"><i class="sw l"></i>Light</button>
+      <button type="button" class="cbtn" data-c="dark" id="cDark"><i class="sw d"></i>Dark</button>
+    </div>
+    <div class="overlay" id="overlay" hidden><div class="ocard" id="ocard"></div></div>
+  </div>
+
+  <div class="options" id="options" hidden></div>
+
+  <div class="tools">
+    <button type="button" class="chipbtn" id="labelsBtn" aria-pressed="true">Board labels</button>
+    <button type="button" class="chipbtn" id="focusBtn" aria-pressed="false">Focus on weak squares</button>
+  </div>
+
+  <section class="weak">
+    <div class="weak-head">
+      <h2>Weak spots</h2>
+      <button type="button" class="linkbtn" id="resetBtn">Reset</button>
+    </div>
+    <div class="alltime"><b id="allRight">0</b><span id="allDetail">correct across all your sessions</span></div>
+    <div class="weak-body">
+      <div class="heat" id="heat" aria-label="Heat map of missed squares"></div>
+      <div class="weak-side">
+        <p id="weakSummary"></p>
+        <div class="chips" id="weakChips"></div>
+      </div>
+    </div>
+    <p class="rule"><b>How squares are named.</b> Files run a to h, left to right from White's side. Ranks count 1 to 8, starting at White's side. a1 is always dark. <b>Colour trick:</b> turn the letter into a number (a = 1 … h = 8) and add the rank. Even is dark, odd is light.</p>
+  </section>
+  <p class="note" id="syncNote" data-state="local">Progress is kept on this device.</p>
+</div>
+
+<script>
+(function(){
+  const FILES = "abcdefgh";
+  const SQ = Array.from({length:64}, (_, i) => {
+    const f = i % 8, r = Math.floor(i / 8);
+    return { i, f, r, name: FILES[f] + (r + 1), light: (f + r) % 2 === 1 };
+  });
+  const BY = Object.fromEntries(SQ.map(s => [s.name, s]));
+
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem("sqsight:" + k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } },
+    set(k, v){ try { localStorage.setItem("sqsight:" + k, JSON.stringify(v)); } catch(e){} }
+  };
+
+  // Each mode describes itself; add a new mode by adding an entry here plus its answer handling.
+  const MODES = {
+    find:   { ask: "Tap the square",               board: true,  options: false },
+    name:   { ask: "Which square is marked?",      board: true,  options: true  },
+    colour: { ask: "Light or dark square?",        board: false, options: false }
+  };
+
+  const S = {
+    mode: store.get("mode", "find"),
+    side: store.get("side", "white"),
+    labels: store.get("labels", true),
+    focus: store.get("focus", false),
+    best: store.get("bestStreak", 0),
+    total: store.get("total", { right: 0, seen: 0 }),
+    bests: store.get("bests", {}),
+    dur: 0, running: false, endAt: 0,
+    score: 0, streak: 0, q: null, busy: false, last: null, timer: null
+  };
+  if (!MODES[S.mode]) S.mode = "find";
+  let weak = store.get("weak", {});
+  // carry over timed-run bests saved by the first version
+  ["find","name","colour"].forEach(m => [30,60].forEach(d => {
+    const k = m + ":" + d, old = store.get("best:" + k, 0);
+    if (old > (S.bests[k] || 0)) S.bests[k] = old;
+  }));
+
+  /* ---------- saving progress ----------
+     Everything that should last lives in one record: kept on this device right away,
+     and copied to the viewer's own private spot in Claude when they're signed in,
+     so it survives closing the app and follows them to other devices. */
+  const cloud = { ref: null, saving: false, dirty: false, timer: null, dead: false };
+  function progress(){
+    return { v: 1, total: S.total, bestStreak: S.best, bests: S.bests, weak, updatedAt: Date.now() };
+  }
+  function saveLocal(){
+    store.set("total", S.total); store.set("bestStreak", S.best);
+    store.set("bests", S.bests); store.set("weak", weak);
+  }
+  function saveProgress(now){
+    saveLocal();
+    if (!cloud.ref || cloud.dead) return;
+    cloud.dirty = true;
+    clearTimeout(cloud.timer);
+    cloud.timer = setTimeout(flushCloud, now ? 0 : 1200);
+  }
+  async function flushCloud(){
+    if (!cloud.ref || cloud.saving || !cloud.dirty || cloud.dead) return;
+    cloud.saving = true; cloud.dirty = false;
+    setSync("saving");
+    let retry = false;
+    try {
+      await cloud.ref.set(progress());
+      setSync("saved");
+    } catch(e){
+      const code = e && e.code;
+      if (code === "unavailable" || code === "resource_exhausted"){ cloud.dirty = true; retry = true; setSync("retry"); }
+      else { cloud.dead = true; setSync("local"); }
+    } finally {
+      cloud.saving = false;
+      if (cloud.dirty && !cloud.dead) cloud.timer = setTimeout(flushCloud, retry ? 3000 + Math.random() * 3000 : 300);
+    }
+  }
+  function adopt(d){
+    // take the record with more answers in it; best scores always keep the highest
+    const remoteSeen = (d.total && d.total.seen) || 0;
+    if (remoteSeen > S.total.seen){
+      S.total = { right: d.total.right || 0, seen: remoteSeen };
+      weak = d.weak && typeof d.weak === "object" ? JSON.parse(JSON.stringify(d.weak)) : {};
+    }
+    S.best = Math.max(S.best, d.bestStreak || 0);
+    const rb = d.bests || {};
+    Object.keys(rb).forEach(k => { if ((rb[k] || 0) > (S.bests[k] || 0)) S.bests[k] = rb[k]; });
+    saveLocal();
+    updateStats(); renderWeak();
+    return remoteSeen;
+  }
+  function setSync(state){
+    const msgs = {
+      connecting: "Connecting to your Claude account…",
+      saving: "Saving to your Claude account…",
+      saved: "Progress saved to your Claude account. It's there next time, on any device.",
+      retry: "Couldn't reach Claude just now. Trying again; your progress is safe on this device.",
+      local: "Progress is saved on this phone. Keep the home-screen icon to keep it."
+    };
+    const el = $("syncNote");
+    el.textContent = msgs[state] || msgs.local;
+    el.dataset.state = state;
+  }
+  async function initCloud(){
+    if (!window.claude || typeof window.claude.use !== "function"){ setSync("local"); return; }
+    setSync("connecting");
+    try {
+      const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+      const id = user ? await user.id() : null;
+      if (!db || !id){ setSync("local"); return; }
+      cloud.ref = db.doc("data/users/" + id + "/progress");
+      let first = true;
+      cloud.ref.onSnapshot(snap => {
+        if (snap.metadata.hasPendingWrites) return;
+        if (snap.exists){
+          const remoteSeen = adopt(snap.data());
+          if (first && !snap.metadata.fromCache){
+            first = false;
+            if (S.total.seen > remoteSeen) saveProgress(true); else setSync("saved");
+          }
+        } else if (!snap.metadata.fromCache && first){
+          first = false;
+          if (S.total.seen > 0) saveProgress(true); else setSync("saved");
+        }
+      }, () => { /* live updates stopped; saving still works */ });
+    } catch(e){ setSync("local"); }
+  }
+
+  const $ = id => document.getElementById(id);
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const order = () => ({
+    rows: S.side === "white" ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7],
+    cols: S.side === "white" ? [0,1,2,3,4,5,6,7] : [7,6,5,4,3,2,1,0]
+  });
+
+  /* ---------- board ---------- */
+  function buildBoard(){
+    const b = $("board"); b.innerHTML = "";
+    const { rows, cols } = order();
+    rows.forEach((r, ri) => cols.forEach((f, ci) => {
+      const s = SQ[r * 8 + f];
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "sq " + (s.light ? "l" : "d");
+      el.dataset.sq = s.name;
+      el.setAttribute("aria-label", "square");
+      let html = "";
+      if (ci === 0) html += '<span class="rk">' + (r + 1) + "</span>";
+      if (ri === 7) html += '<span class="fl">' + FILES[f] + "</span>";
+      html += '<span class="tag"></span>';
+      el.innerHTML = html;
+      b.appendChild(el);
+    }));
+    b.classList.toggle("nolabels", !S.labels);
+  }
+  const sqEl = n => $("board").querySelector('[data-sq="' + n + '"]');
+  function mark(n, cls, tag){
+    const e = sqEl(n); if (!e) return;
+    e.classList.add(cls);
+    if (tag){ e.querySelector(".tag").textContent = n; e.classList.add("tagged"); }
+  }
+  function clearMarks(){
+    $("board").querySelectorAll(".sq").forEach(e => e.classList.remove("target","good","bad","tagged"));
+    document.querySelectorAll(".cbtn").forEach(e => e.classList.remove("good","bad"));
+  }
+
+  /* ---------- picking squares (weak squares come up more) ---------- */
+  const weakScore = n => (weak[n] && weak[n].s) || 0;
+  function pickSquare(){
+    let pool = SQ;
+    if (S.focus){
+      const w = SQ.filter(s => weakScore(s.name) > 0);
+      if (w.length >= 4) pool = w;
+    }
+    const weights = pool.map(s => s.name === S.last ? 0 : 1 + weakScore(s.name) * 1.5);
+    let t = Math.random() * weights.reduce((a, b) => a + b, 0);
+    for (let k = 0; k < pool.length; k++){ t -= weights[k]; if (t <= 0) return pool[k]; }
+    return pool[pool.length - 1];
+  }
+
+  function distractors(s){
+    const c = new Set();
+    const add = (f, r) => { if (f >= 0 && f < 8 && r >= 0 && r < 8){ const n = FILES[f] + (r + 1); if (n !== s.name) c.add(n); } };
+    [-2,-1,1,2].forEach(d => { add(s.f + d, s.r); add(s.f, s.r + d); });
+    add(s.f+1, s.r+1); add(s.f-1, s.r-1); add(s.f+1, s.r-1); add(s.f-1, s.r+1);
+    const mirrors = [];
+    [[7-s.f, 7-s.r],[7-s.f, s.r],[s.f, 7-s.r]].forEach(([f, r]) => { const n = FILES[f] + (r + 1); if (n !== s.name) mirrors.push(n); });
+    // always include one mirror square: the classic mix-up when the board is flipped
+    const pickMirror = mirrors.length ? shuffle(mirrors)[0] : null;
+    const near = shuffle([...c].filter(n => n !== pickMirror)).slice(0, pickMirror ? 2 : 3);
+    return shuffle([s.name, ...near, ...(pickMirror ? [pickMirror] : [])]);
+  }
+
+  /* ---------- questions ---------- */
+  function newQuestion(){
+    clearMarks();
+    S.busy = false;
+    const s = pickSquare();
+    S.last = s.name; S.q = { sq: s };
+    const fb = $("fb"); fb.className = "fb"; fb.innerHTML = "";
+    $("ask").textContent = MODES[S.mode].ask;
+    if (S.mode === "name"){
+      $("target").textContent = "?";
+      mark(s.name, "target");
+      const opts = $("options"); opts.innerHTML = "";
+      distractors(s).forEach(n => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "opt"; b.textContent = n; b.dataset.n = n;
+        opts.appendChild(b);
+      });
+    } else {
+      $("target").textContent = s.name;
+    }
+  }
+
+  const canAnswer = () => !S.busy && S.q && (S.dur === 0 || S.running);
+
+  function colourTip(s){
+    const fn = s.f + 1, sum = fn + s.r + 1;
+    return FILES[s.f] + " = " + fn + ", " + fn + " + " + (s.r + 1) + " = " + sum + " → " + (sum % 2 ? "odd, light" : "even, dark");
+  }
+
+  function answer(ok, picked){
+    S.busy = true;
+    const s = S.q.sq;
+    recordWeak(s.name, ok);
+    S.total = { right: S.total.right + (ok ? 1 : 0), seen: S.total.seen + 1 };
+    if (ok){
+      S.score++; S.streak++;
+      if (S.streak > S.best) S.best = S.streak;
+    } else {
+      S.streak = 0;
+    }
+    saveProgress();
+    updateStats();
+    const fb = $("fb");
+    fb.className = "fb " + (ok ? "ok" : "no");
+
+    if (S.mode === "find"){
+      if (ok){ mark(s.name, "good"); fb.textContent = "Correct"; }
+      else { mark(picked, "bad", true); mark(s.name, "good", true); fb.innerHTML = "That was " + picked + "<small>" + s.name + " is shown in green</small>"; }
+    } else if (S.mode === "name"){
+      document.querySelectorAll(".opt").forEach(b => {
+        if (b.dataset.n === s.name) b.classList.add("good");
+        else if (b.dataset.n === picked) b.classList.add("bad");
+      });
+      $("target").textContent = s.name;
+      sqEl(s.name).classList.remove("target");
+      mark(s.name, ok ? "good" : "bad", true);
+      fb.textContent = ok ? "Correct" : "It's " + s.name;
+    } else {
+      const right = s.light ? "cLight" : "cDark";
+      $(right).classList.add("good");
+      if (!ok) $(right === "cLight" ? "cDark" : "cLight").classList.add("bad");
+      fb.innerHTML = (ok ? "Correct" : "It's " + (s.light ? "light" : "dark")) + "<small>" + colourTip(s) + "</small>";
+    }
+
+    const fast = S.running;
+    let wait = ok ? (fast ? 220 : 600) : (fast ? 800 : 1500);
+    if (!ok && S.mode === "colour" && !fast) wait = 2200;
+    setTimeout(() => { if (S.dur && !S.running) return; newQuestion(); }, wait);
+  }
+
+  /* ---------- weak squares ---------- */
+  function recordWeak(n, ok){
+    const w = weak[n] || { s: 0, seen: 0, miss: 0 };
+    w.seen++;
+    if (ok) w.s = Math.max(0, w.s - 1);
+    else { w.miss++; w.s = Math.min(8, w.s + 3); }
+    weak = Object.assign({}, weak, { [n]: w });
+    renderWeak();
+  }
+  function renderWeak(){
+    const h = $("heat"); h.innerHTML = "";
+    const { rows, cols } = order();
+    rows.forEach(r => cols.forEach(f => {
+      const s = SQ[r * 8 + f];
+      const c = document.createElement("div");
+      c.className = "hc " + (s.light ? "l" : "d");
+      c.style.setProperty("--p", Math.round(weakScore(s.name) / 8 * 85) + "%");
+      h.appendChild(c);
+    }));
+    const list = SQ.filter(s => weakScore(s.name) > 0).sort((a, b) => weakScore(b.name) - weakScore(a.name));
+    const chips = $("weakChips"); chips.innerHTML = "";
+    list.slice(0, 8).forEach(s => {
+      const w = weak[s.name];
+      const el = document.createElement("span");
+      el.className = "chip";
+      el.innerHTML = s.name + "<small>missed " + w.miss + "/" + w.seen + "</small>";
+      chips.appendChild(el);
+    });
+    let msg;
+    if (!list.length) msg = "No trouble squares yet. Squares you miss turn red here and come up more often until you get them right a few times.";
+    else msg = "Red squares come up more often. Each correct answer cools them down.";
+    if (S.focus && list.length < 4) msg += " Focus mode needs at least 4 weak squares, so you're on the whole board for now.";
+    $("weakSummary").textContent = msg;
+  }
+
+  /* ---------- timed runs ---------- */
+  function showStartOverlay(){
+    $("overlay").hidden = false;
+    $("ocard").innerHTML = '<p>' + S.dur + '-second run</p><div class="big">' + label(S.mode) + '</div>' +
+      '<p>Best: ' + (S.bests[bestKey()] || 0) + '</p><button type="button" class="primary" id="startBtn">Start</button>';
+  }
+  const label = m => ({ find: "Find", name: "Name", colour: "Light/dark" })[m];
+  const bestKey = () => S.mode + ":" + S.dur;
+
+  function startRun(){
+    S.score = 0; S.streak = 0; updateStats();
+    $("overlay").hidden = true;
+    S.running = true;
+    S.endAt = performance.now() + S.dur * 1000;
+    newQuestion();
+    tick();
+  }
+  function tick(){
+    if (!S.running) return;
+    const left = Math.max(0, S.endAt - performance.now());
+    $("timefill").style.width = (left / (S.dur * 1000) * 100) + "%";
+    $("timeleft").textContent = Math.ceil(left / 1000) + " s left";
+    if (left <= 0){ endRun(); return; }
+    S.timer = requestAnimationFrame(tick);
+  }
+  function endRun(){
+    S.running = false; S.busy = true;
+    const prev = S.bests[bestKey()] || 0;
+    const isNew = S.score > prev;
+    if (isNew){ S.bests = Object.assign({}, S.bests, { [bestKey()]: S.score }); saveProgress(true); }
+    $("overlay").hidden = false;
+    $("ocard").innerHTML = '<p>Time!</p><div class="big">' + S.score + '</div><p>squares in ' + S.dur + ' seconds</p>' +
+      (isNew ? '<p class="new">New best</p>' : '<p>Best: ' + prev + '</p>') +
+      '<button type="button" class="primary" id="startBtn">Go again</button>';
+  }
+  function stopRun(){
+    S.running = false;
+    if (S.timer) cancelAnimationFrame(S.timer);
+  }
+
+  /* ---------- UI state ---------- */
+  function updateStats(){
+    $("score").textContent = S.score;
+    $("streak").textContent = S.streak;
+    $("bestStreak").textContent = S.best;
+    const t = S.total;
+    $("total").textContent = t.right;
+    $("allRight").textContent = t.right.toLocaleString("en-US");
+    $("allDetail").textContent = t.seen
+      ? "correct out of " + t.seen.toLocaleString("en-US") + " across all your sessions (" + Math.round(t.right / t.seen * 100) + "%)"
+      : "correct across all your sessions. This keeps counting every time you come back.";
+  }
+  function setPressed(groupId, attr, val){
+    $(groupId).querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset[attr] === String(val))));
+  }
+  function applyAll(){
+    stopRun();
+    S.score = 0; S.streak = 0;
+    setPressed("sideSeg", "side", S.side);
+    setPressed("modeSeg", "mode", S.mode);
+    setPressed("durSeg", "dur", S.dur);
+    $("labelsBtn").setAttribute("aria-pressed", String(S.labels));
+    $("focusBtn").setAttribute("aria-pressed", String(S.focus));
+    const m = MODES[S.mode];
+    $("board").hidden = !m.board;
+    $("cpanel").hidden = m.board;
+    $("options").hidden = !m.options;
+    $("timebar").hidden = S.dur === 0;
+    $("timefill").style.width = "100%";
+    $("timeleft").textContent = S.dur + " s left";
+    buildBoard();
+    renderWeak();
+    updateStats();
+    newQuestion();
+    if (S.dur){ S.busy = true; showStartOverlay(); } else { $("overlay").hidden = true; }
+  }
+
+  /* ---------- events ---------- */
+  $("board").addEventListener("click", e => {
+    const el = e.target.closest(".sq"); if (!el || S.mode !== "find" || !canAnswer()) return;
+    answer(el.dataset.sq === S.q.sq.name, el.dataset.sq);
+  });
+  $("options").addEventListener("click", e => {
+    const b = e.target.closest(".opt"); if (!b || !canAnswer()) return;
+    answer(b.dataset.n === S.q.sq.name, b.dataset.n);
+  });
+  $("cpanel").addEventListener("click", e => {
+    const b = e.target.closest(".cbtn"); if (!b || !canAnswer()) return;
+    answer((b.dataset.c === "light") === S.q.sq.light, b.dataset.c);
+  });
+  $("overlay").addEventListener("click", e => { if (e.target.closest("#startBtn")) startRun(); });
+
+  $("sideSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.side = b.dataset.side; store.set("side", S.side); applyAll(); });
+  $("modeSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.mode = b.dataset.mode; store.set("mode", S.mode); applyAll(); });
+  $("durSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.dur = Number(b.dataset.dur); applyAll(); });
+  $("labelsBtn").addEventListener("click", () => {
+    S.labels = !S.labels; store.set("labels", S.labels);
+    $("labelsBtn").setAttribute("aria-pressed", String(S.labels));
+    $("board").classList.toggle("nolabels", !S.labels);
+  });
+  $("focusBtn").addEventListener("click", () => {
+    S.focus = !S.focus; store.set("focus", S.focus);
+    $("focusBtn").setAttribute("aria-pressed", String(S.focus));
+    renderWeak();
+  });
+  let armTimer = null;
+  $("resetBtn").addEventListener("click", () => {
+    const b = $("resetBtn");
+    if (!b.classList.contains("armed")){
+      b.classList.add("armed"); b.textContent = "Tap again to clear all stats";
+      armTimer = setTimeout(() => { b.classList.remove("armed"); b.textContent = "Reset"; }, 3000);
+      return;
+    }
+    clearTimeout(armTimer);
+    weak = {}; S.best = 0; S.total = { right: 0, seen: 0 }; S.bests = {};
+    ["find","name","colour"].forEach(m => [30,60].forEach(d => store.set("best:" + m + ":" + d, 0)));
+    saveProgress(true);
+    b.classList.remove("armed"); b.textContent = "Reset";
+    renderWeak(); updateStats();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && cloud.dirty){ clearTimeout(cloud.timer); flushCloud(); }
+  });
+
+  applyAll();
+  setSync("local");
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+})();
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+}
+</script>
+</body>
+</html>
