@@ -132,6 +132,19 @@ h1 span{font-family:var(--f-coord); font-weight:500; font-size:13px; color:var(-
 
 /* name-mode options */
 .options{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+
+/* say-it mode: answer box above a smaller board so both fit above the keyboard */
+.saybox{display:flex; flex-direction:column; gap:6px}
+.say-label{font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:600}
+#sayInput{width:100%; font-family:var(--f-coord); font-size:22px; font-weight:700; padding:12px 14px; border-radius:12px; border:2px solid var(--line); background:var(--surface); color:var(--ink); outline:none}
+#sayInput:focus{border-color:var(--accent)}
+#sayInput::placeholder{font-family:var(--f-ui); font-size:16px; font-weight:500; color:var(--muted)}
+.say-hint{margin:0; font-size:13px; color:var(--muted)}
+.app.saying .stage{width:min(100%, 34vh, 480px)}
+.saybox:focus-within .say-label,.saybox:focus-within .say-hint{display:none}
+.app.saying .prompt{min-height:0}
+.app.saying .target{font-size:34px}
+.app.saying .seg button{padding-inline:8px}
 .opt{border:1px solid var(--line); background:var(--surface); border-radius:12px; min-height:54px; font-family:var(--f-coord); font-weight:700; font-size:20px}
 .opt.good{background:var(--good); border-color:var(--good); color:#fff}
 .opt.bad{background:var(--bad); border-color:var(--bad); color:#fff}
@@ -190,6 +203,7 @@ h2{margin:0; font-size:18px}
     <button type="button" data-mode="find" id="modeFind">Find</button>
     <button type="button" data-mode="name" id="modeName">Name</button>
     <button type="button" data-mode="colour" id="modeColour">Light or dark</button>
+    <button type="button" data-mode="say" id="modeSay">Say it</button>
   </div>
 
   <div class="bar">
@@ -208,13 +222,19 @@ h2{margin:0; font-size:18px}
 
   <div class="timebar" id="timebar" hidden><i id="timefill"></i><span id="timeleft">30 s left</span></div>
 
-  <section class="prompt" aria-live="polite">
+  <section class="prompt" aria-live="polite" id="promptRow">
     <div class="left">
       <div class="ask" id="ask">Tap the square</div>
       <div class="target" id="target">e4</div>
     </div>
     <div class="fb" id="fb"></div>
   </section>
+
+  <div class="saybox" id="saybox" hidden>
+    <label for="sayInput" class="say-label">Your answer</label>
+    <input id="sayInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="text" placeholder="Tap here, then 🎤 on the keyboard">
+    <p class="say-hint" id="sayHint">Say squares like “e four” or “bee three”. Dictation keeps listening, so just say the next one. Typing works too.</p>
+  </div>
 
   <div class="stage" id="stage">
     <div class="board" id="board" role="grid" aria-label="Chess board"></div>
@@ -268,7 +288,8 @@ h2{margin:0; font-size:18px}
   const MODES = {
     find:   { ask: "Tap the square",               board: true,  options: false },
     name:   { ask: "Which square is marked?",      board: true,  options: true  },
-    colour: { ask: "Light or dark square?",        board: false, options: false }
+    colour: { ask: "Light or dark square?",        board: false, options: false },
+    say:    { ask: "Say the marked square",        board: true,  options: false, voice: true }
   };
 
   const S = {
@@ -450,7 +471,10 @@ h2{margin:0; font-size:18px}
     S.last = s.name; S.q = { sq: s };
     const fb = $("fb"); fb.className = "fb"; fb.innerHTML = "";
     $("ask").textContent = MODES[S.mode].ask;
-    if (S.mode === "name"){
+    if (S.mode === "say"){
+      $("target").textContent = "?";
+      mark(s.name, "target");
+    } else if (S.mode === "name"){
       $("target").textContent = "?";
       mark(s.name, "target");
       const opts = $("options"); opts.innerHTML = "";
@@ -487,7 +511,13 @@ h2{margin:0; font-size:18px}
     const fb = $("fb");
     fb.className = "fb " + (ok ? "ok" : "no");
 
-    if (S.mode === "find"){
+    if (S.mode === "say"){
+      $("target").textContent = s.name;
+      sqEl(s.name).classList.remove("target");
+      mark(s.name, "good", true);
+      if (!ok) mark(picked, "bad", true);
+      fb.innerHTML = ok ? "Correct" : "You said " + picked + "<small>It's " + s.name + "</small>";
+    } else if (S.mode === "find"){
       if (ok){ mark(s.name, "good"); fb.textContent = "Correct"; }
       else { mark(picked, "bad", true); mark(s.name, "good", true); fb.innerHTML = "That was " + picked + "<small>" + s.name + " is shown in green</small>"; }
     } else if (S.mode === "name"){
@@ -553,7 +583,7 @@ h2{margin:0; font-size:18px}
     $("ocard").innerHTML = '<p>' + S.dur + '-second run</p><div class="big">' + label(S.mode) + '</div>' +
       '<p>Best: ' + (S.bests[bestKey()] || 0) + '</p><button type="button" class="primary" id="startBtn">Start</button>';
   }
-  const label = m => ({ find: "Find", name: "Name", colour: "Light/dark" })[m];
+  const label = m => ({ find: "Find", name: "Name", colour: "Light/dark", say: "Say it" })[m];
   const bestKey = () => S.mode + ":" + S.dur;
 
   function startRun(){
@@ -614,6 +644,9 @@ h2{margin:0; font-size:18px}
     $("board").hidden = !m.board;
     $("cpanel").hidden = m.board;
     $("options").hidden = !m.options;
+    $("saybox").hidden = !m.voice;
+    document.querySelector(".app").classList.toggle("saying", !!m.voice);
+    resetVoice();
     $("timebar").hidden = S.dur === 0;
     $("timefill").style.width = "100%";
     $("timeleft").textContent = S.dur + " s left";
@@ -623,6 +656,66 @@ h2{margin:0; font-size:18px}
     newQuestion();
     if (S.dur){ S.busy = true; showStartOverlay(); } else { $("overlay").hidden = true; }
   }
+
+  /* ---------- say it: read squares from dictated or typed text ---------- */
+  // Words dictation tends to write for letters and numbers, mapped back to a1–h8.
+  const LETTER_WORDS = {
+    a:"a", ay:"a", eh:"a",
+    b:"b", be:"b", bee:"b", bea:"b",
+    c:"c", see:"c", sea:"c", cee:"c", si:"c", she:"c",
+    d:"d", dee:"d", de:"d", the:"d",
+    e:"e", ee:"e",
+    f:"f", ef:"f", eff:"f",
+    g:"g", gee:"g", ji:"g", jee:"g", gi:"g",
+    h:"h", aitch:"h", haitch:"h", age:"h", each:"h", itch:"h", eich:"h"
+  };
+  const NUMBER_WORDS = {
+    one:"1", won:"1", two:"2", to:"2", too:"2", three:"3", tree:"3", free:"3",
+    four:"4", for:"4", fore:"4", five:"5", six:"6", sicks:"6", seven:"7", eight:"8", ate:"8"
+  };
+  const WHOLE_WORDS = { before:"b4", gate:"g8", fate:"f8", decks:"d6", seesaw:"c4" };
+
+  function squaresIn(text){
+    const toks = String(text).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+    const items = [];
+    toks.forEach(t => {
+      if (/^[a-h][1-8]$/.test(t)) items.push({ sq: t });
+      else if (WHOLE_WORDS[t]) items.push({ sq: WHOLE_WORDS[t] });
+      else if (LETTER_WORDS[t]) items.push({ l: LETTER_WORDS[t] });
+      else if (/^[1-8]$/.test(t)) items.push({ d: t });
+      else if (NUMBER_WORDS[t]) items.push({ d: NUMBER_WORDS[t] });
+      else items.push({});
+    });
+    const found = [];
+    for (let i = 0; i < items.length; i++){
+      if (items[i].sq) found.push(items[i].sq);
+      else if (items[i].l && items[i + 1] && items[i + 1].d){ found.push(items[i].l + items[i + 1].d); i++; }
+    }
+    return found;
+  }
+
+  // Dictation keeps adding to the box and may tidy up earlier words, so count the
+  // squares in the whole box and answer with each new one exactly once.
+  const voice = { used: 0 };
+  function resetVoice(){ const i = $("sayInput"); if (i) i.value = ""; voice.used = 0; }
+  function onVoiceInput(){
+    if (S.mode !== "say") return;
+    const found = squaresIn($("sayInput").value);
+    if (found.length < voice.used) voice.used = found.length;   // dictation merged words
+    if (found.length === voice.used) return;
+    if (!canAnswer()){ voice.used = found.length; return; }     // spoken during feedback: skip
+    const said = found[voice.used];
+    voice.used = found.length;
+    answer(said === S.q.sq.name, said);
+    if ($("sayInput").value.length > 400) resetVoice();
+  }
+  $("sayInput").addEventListener("input", onVoiceInput);
+  $("sayInput").addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
+  // once the keyboard is up, line the question, answer box and board up above it
+  $("sayInput").addEventListener("focus", () => {
+    setTimeout(() => { try { $("promptRow").scrollIntoView({ block: "start", behavior: "smooth" }); } catch(e){} }, 400);
+  });
+  const focusSay = () => { if (S.mode === "say"){ try { $("sayInput").focus({ preventScroll: true }); } catch(e){} } };
 
   /* ---------- events ---------- */
   $("board").addEventListener("click", e => {
@@ -637,10 +730,10 @@ h2{margin:0; font-size:18px}
     const b = e.target.closest(".cbtn"); if (!b || !canAnswer()) return;
     answer((b.dataset.c === "light") === S.q.sq.light, b.dataset.c);
   });
-  $("overlay").addEventListener("click", e => { if (e.target.closest("#startBtn")) startRun(); });
+  $("overlay").addEventListener("click", e => { if (e.target.closest("#startBtn")){ resetVoice(); startRun(); focusSay(); } });
 
   $("sideSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.side = b.dataset.side; store.set("side", S.side); applyAll(); });
-  $("modeSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.mode = b.dataset.mode; store.set("mode", S.mode); applyAll(); });
+  $("modeSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.mode = b.dataset.mode; store.set("mode", S.mode); applyAll(); if (!S.dur) focusSay(); });
   $("durSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.dur = Number(b.dataset.dur); applyAll(); });
   $("labelsBtn").addEventListener("click", () => {
     S.labels = !S.labels; store.set("labels", S.labels);
@@ -662,7 +755,7 @@ h2{margin:0; font-size:18px}
     }
     clearTimeout(armTimer);
     weak = {}; S.best = 0; S.total = { right: 0, seen: 0 }; S.bests = {};
-    ["find","name","colour"].forEach(m => [30,60].forEach(d => store.set("best:" + m + ":" + d, 0)));
+    ["find","name","colour","say"].forEach(m => [30,60].forEach(d => store.set("best:" + m + ":" + d, 0)));
     saveProgress(true);
     b.classList.remove("armed"); b.textContent = "Reset";
     renderWeak(); updateStats();
